@@ -240,10 +240,6 @@ impl WebhookNotifier {
 			}
 		}
 
-		tracing::info!("Sending notification to: {}", url);
-		tracing::info!("Sending notification headers: {:?}", headers);
-		tracing::info!("Sending notification: {:?}", payload);
-
 		// Send request with custom payload
 		let response = self
 			.client
