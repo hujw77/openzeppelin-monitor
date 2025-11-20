@@ -144,9 +144,9 @@ pub fn create_block_handler<P: ClientPoolTrait + 'static>(
 	active_monitors: Vec<Monitor>,
 	client_pools: Arc<P>,
 	contract_specs: Vec<(String, ContractSpec)>,
-) -> Arc<impl Fn(BlockType, Network) -> BoxFuture<'static, ProcessedBlock> + Send + Sync> {
+) -> Arc<impl Fn(Vec<BlockType>, Network) -> BoxFuture<'static, ProcessedBlock> + Send + Sync> {
 	Arc::new(
-		move |block: BlockType, network: Network| -> BoxFuture<'static, ProcessedBlock> {
+		move |blocks: Vec<BlockType>, network: Network| -> BoxFuture<'static, ProcessedBlock> {
 			let filter_service = filter_service.clone();
 			let active_monitors = active_monitors.clone();
 			let client_pools = client_pools.clone();
@@ -156,7 +156,8 @@ pub fn create_block_handler<P: ClientPoolTrait + 'static>(
 				let applicable_monitors = filter_network_monitors(&active_monitors, &network.slug);
 
 				let mut processed_block = ProcessedBlock {
-					block_number: block.number().unwrap_or(0),
+					from_block_number: blocks.first().expect("No blocks").number().unwrap_or(0),
+					to_block_number: blocks.last().expect("No blocks").number().unwrap_or(0),
 					network_slug: network.slug.clone(),
 					processing_results: Vec::new(),
 				};
@@ -170,7 +171,7 @@ pub fn create_block_handler<P: ClientPoolTrait + 'static>(
 								process_block(
 									client.as_ref(),
 									&network,
-									&block,
+									&blocks,
 									&applicable_monitors,
 									Some(&contract_specs),
 									&filter_service,
@@ -186,7 +187,7 @@ pub fn create_block_handler<P: ClientPoolTrait + 'static>(
 									process_block(
 										client.as_ref(),
 										&network,
-										&block,
+										&blocks,
 										&applicable_monitors,
 										Some(&contract_specs),
 										&filter_service,
@@ -203,7 +204,7 @@ pub fn create_block_handler<P: ClientPoolTrait + 'static>(
 									process_block(
 										client.as_ref(),
 										&network,
-										&block,
+										&blocks,
 										&applicable_monitors,
 										Some(&contract_specs),
 										&filter_service,
@@ -237,7 +238,7 @@ pub fn create_block_handler<P: ClientPoolTrait + 'static>(
 pub async fn process_block<T>(
 	client: &T,
 	network: &Network,
-	block: &BlockType,
+	blocks: &Vec<BlockType>,
 	applicable_monitors: &[Monitor],
 	contract_specs: Option<&[(String, ContractSpec)]>,
 	filter_service: &FilterService,
@@ -247,7 +248,7 @@ where
 	T: BlockChainClient + BlockFilterFactory<T>,
 {
 	tokio::select! {
-		result = filter_service.filter_block(client, network, block, applicable_monitors, contract_specs) => {
+		result = filter_service.filter_block(client, network, blocks, applicable_monitors, contract_specs) => {
 			result.ok()
 		}
 		_ = shutdown_rx.changed() => {

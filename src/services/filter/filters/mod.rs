@@ -41,7 +41,7 @@ pub trait BlockFilter {
 		&self,
 		client: &Self::Client,
 		network: &Network,
-		block: &BlockType,
+		blocks: &Vec<BlockType>,
 		monitors: &[Monitor],
 		contract_specs: Option<&[(String, ContractSpec)]>,
 	) -> Result<Vec<MonitorMatch>, FilterError>;
@@ -53,7 +53,7 @@ pub trait FilterServiceTrait: Send + Sync {
 		&self,
 		client: &T,
 		network: &Network,
-		block: &BlockType,
+		blocks: &Vec<BlockType>,
 		monitors: &[Monitor],
 		contract_specs: Option<&[(String, ContractSpec)]>,
 	) -> Result<Vec<MonitorMatch>, FilterError>;
@@ -81,13 +81,13 @@ impl FilterService {
 		&self,
 		client: &T,
 		network: &Network,
-		block: &BlockType,
+		blocks: &Vec<BlockType>,
 		monitors: &[Monitor],
 		contract_specs: Option<&[(String, ContractSpec)]>,
 	) -> Result<Vec<MonitorMatch>, FilterError> {
 		let filter = T::filter();
 		filter
-			.filter_block(client, network, block, monitors, contract_specs)
+			.filter_block(client, network, blocks, monitors, contract_specs)
 			.await
 	}
 }
@@ -98,13 +98,13 @@ impl FilterServiceTrait for FilterService {
 		&self,
 		client: &T,
 		network: &Network,
-		block: &BlockType,
+		blocks: &Vec<BlockType>,
 		monitors: &[Monitor],
 		contract_specs: Option<&[(String, ContractSpec)]>,
 	) -> Result<Vec<MonitorMatch>, FilterError> {
 		let filter = T::filter();
 		filter
-			.filter_block(client, network, block, monitors, contract_specs)
+			.filter_block(client, network, blocks, monitors, contract_specs)
 			.await
 	}
 }

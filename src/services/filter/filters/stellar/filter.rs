@@ -838,10 +838,14 @@ impl<T: BlockChainClient + StellarClientTrait> BlockFilter for StellarBlockFilte
 		&self,
 		client: &Self::Client,
 		network: &Network,
-		block: &BlockType,
+		blocks: &Vec<BlockType>,
 		monitors: &[Monitor],
 		contract_specs: Option<&[(String, ContractSpec)]>,
 	) -> Result<Vec<MonitorMatch>, FilterError> {
+		//TODO: batch filter
+		let block = blocks
+			.first()
+			.ok_or_else(|| FilterError::internal_error(format!("Blocks not found"), None, None))?;
 		let stellar_block = match block {
 			BlockType::Stellar(block) => block,
 			_ => {

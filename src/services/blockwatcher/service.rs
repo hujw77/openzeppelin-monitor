@@ -107,7 +107,7 @@ where
 impl<S, H, T, J> NetworkBlockWatcher<S, H, T, J>
 where
 	S: BlockStorage + Send + Sync + 'static,
-	H: Fn(BlockType, Network) -> BoxFuture<'static, ProcessedBlock> + Send + Sync + 'static,
+	H: Fn(Vec<BlockType>, Network) -> BoxFuture<'static, ProcessedBlock> + Send + Sync + 'static,
 	T: Fn(&ProcessedBlock) -> tokio::task::JoinHandle<()> + Send + Sync + 'static,
 	J: JobSchedulerTrait,
 {
@@ -241,7 +241,7 @@ where
 impl<S, H, T, J> BlockWatcherService<S, H, T, J>
 where
 	S: BlockStorage + Send + Sync + 'static,
-	H: Fn(BlockType, Network) -> BoxFuture<'static, ProcessedBlock> + Send + Sync + 'static,
+	H: Fn(Vec<BlockType>, Network) -> BoxFuture<'static, ProcessedBlock> + Send + Sync + 'static,
 	T: Fn(&ProcessedBlock) -> tokio::task::JoinHandle<()> + Send + Sync + 'static,
 	J: JobSchedulerTrait,
 {
@@ -331,7 +331,7 @@ where
 pub async fn process_new_blocks<
 	S: BlockStorage,
 	C: BlockChainClient + Send + Clone + 'static,
-	H: Fn(BlockType, Network) -> BoxFuture<'static, ProcessedBlock> + Send + Sync + 'static,
+	H: Fn(Vec<BlockType>, Network) -> BoxFuture<'static, ProcessedBlock> + Send + Sync + 'static,
 	T: Fn(&ProcessedBlock) -> tokio::task::JoinHandle<()> + Send + Sync + 'static,
 	TR: BlockTrackerTrait + Send + Sync + 'static,
 >(
@@ -432,8 +432,8 @@ pub async fn process_new_blocks<
 	}
 
 	// Create channels for our pipeline
-	let (process_tx, process_rx) = mpsc::channel::<(BlockType, u64)>(blocks.len() * 2);
-	let (trigger_tx, trigger_rx) = mpsc::channel::<ProcessedBlock>(blocks.len() * 2);
+	let (process_tx, process_rx) = mpsc::channel::<Vec<BlockType>>(2);
+	let (trigger_tx, trigger_rx) = mpsc::channel::<ProcessedBlock>(2);
 
 	// Stage 1: Block Processing Pipeline
 	let process_handle = tokio::spawn({
@@ -444,10 +444,10 @@ pub async fn process_new_blocks<
 		async move {
 			// Process blocks concurrently, up to 32 at a time
 			let mut results = process_rx
-				.map(|(block, _)| {
+				.map(|blocks| {
 					let network = network.clone();
 					let block_handler = block_handler.clone();
-					async move { (block_handler)(block, network).await }
+					async move { (block_handler)(blocks, network).await }
 				})
 				.buffer_unordered(32);
 
@@ -477,10 +477,13 @@ pub async fn process_new_blocks<
 
 			// Process all incoming blocks
 			while let Some(processed_block) = trigger_rx.next().await {
-				let block_number = processed_block.block_number;
+				let from_block_number = processed_block.from_block_number;
+				let to_block_numer = processed_block.to_block_number;
 
 				// Buffer the block - we'll check and execute in order
-				pending_blocks.insert(block_number, processed_block);
+				for block_number in from_block_number..=to_block_numer {
+					pending_blocks.insert(block_number, processed_block.clone());
+				}
 
 				// Process blocks in order as long as we have the next expected block
 				while let Some(expected) = next_block_number {
@@ -570,25 +573,11 @@ pub async fn process_new_blocks<
 		}
 	});
 
-	// Feed blocks into the pipeline
-	futures::future::join_all(blocks.iter().map(|block| {
-		let mut process_tx = process_tx.clone();
-		async move {
-			let block_number = block.number().unwrap_or(0);
-
-			// Send block to processing pipeline
-			process_tx
-				.send((block.clone(), block_number))
-				.await
-				.with_context(|| "Failed to send block to pipeline")?;
-
-			Ok::<(), BlockWatcherError>(())
-		}
-	}))
-	.await
-	.into_iter()
-	.collect::<Result<Vec<_>, _>>()
-	.with_context(|| format!("Failed to process blocks for network {}", network.slug))?;
+	process_tx
+		.clone()
+		.send(blocks.clone())
+		.await
+		.with_context(|| "Failed to send block to pipeline")?;
 
 	// Drop the sender after all blocks are sent
 	drop(process_tx);

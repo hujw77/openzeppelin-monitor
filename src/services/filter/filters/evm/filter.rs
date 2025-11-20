@@ -668,12 +668,18 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 		&self,
 		client: &T,
 		network: &Network,
-		block: &BlockType,
+		blocks: &Vec<BlockType>,
 		monitors: &[Monitor],
 		contract_specs: Option<&[(String, ContractSpec)]>,
 	) -> Result<Vec<MonitorMatch>, FilterError> {
-		let evm_block = match block {
-			BlockType::EVM(block) => block,
+		let from_block = blocks
+			.first()
+			.ok_or_else(|| FilterError::internal_error(format!("Blocks not found"), None, None))?;
+		let to_block = blocks
+			.last()
+			.ok_or_else(|| FilterError::internal_error(format!("Blocks not found"), None, None))?;
+		let (evm_from_block, evm_to_block) = match (from_block, to_block) {
+			(BlockType::EVM(a), BlockType::EVM(b)) => (a, b),
 			_ => {
 				return Err(FilterError::block_type_mismatch(
 					"Expected EVM block",
@@ -683,9 +689,14 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 			}
 		};
 
-		tracing::debug!("Processing block {}", evm_block.number().unwrap_or(0));
+		tracing::debug!(
+			"Processing block from {} - to {}",
+			evm_from_block.number().unwrap_or(0),
+			evm_to_block.number().unwrap_or(0)
+		);
 
-		let current_block_number = evm_block.number.unwrap_or(U64::from(0)).to::<u64>();
+		let current_block_number = evm_from_block.number.unwrap_or(U64::from(0)).to::<u64>();
+		let target_block_number = evm_to_block.number.unwrap_or(U64::from(0)).to::<u64>();
 
 		let all_addresses = monitors
 			.iter()
@@ -700,12 +711,12 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 		let all_block_logs = client
 			.get_logs_for_blocks(
 				current_block_number,
-				current_block_number,
+				target_block_number,
 				Some(all_addresses),
 			)
 			.await?;
 
-		tracing::debug!(
+		tracing::info!(
 			"Found {} logs for block {}",
 			all_block_logs.len(),
 			current_block_number
@@ -731,7 +742,7 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 			logs_by_tx.entry(tx_hash).or_default().push(log);
 		}
 
-		tracing::debug!("Processing {} transactions with logs", logs_by_tx.len());
+		tracing::info!("Processing {} transactions with logs", logs_by_tx.len());
 
 		for monitor in monitors {
 			tracing::debug!("Processing monitor: {:?}", monitor.name);
@@ -742,11 +753,12 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 				.collect();
 
 			// Check if this monitor needs a receipt
-			let should_fetch_receipt = self.needs_receipt(monitor, &all_block_logs);
+			// let should_fetch_receipt = self.needs_receipt(monitor, &all_block_logs);
+			let should_fetch_receipt = false;
 
 			// Process all transactions in the block
-			for transaction in &evm_block.transactions {
-				let tx_hash = b256_to_string(transaction.hash);
+			for log in all_block_logs.clone() {
+				let tx_hash = b256_to_string(log.transaction_hash.unwrap_or_default());
 				let empty_logs = Vec::new();
 				let logs = logs_by_tx.get(&tx_hash).unwrap_or(&empty_logs);
 				let tx_hash_str = tx_hash.clone();
@@ -781,25 +793,25 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 				// Collect all involved addresses from receipt logs, transaction.to, and transaction.from
 				let mut involved_addresses = Vec::new();
 				// Add transaction addresses
-				if let Some(from) = transaction.from {
-					involved_addresses.push(h160_to_string(from));
-				}
-				if let Some(to) = transaction.to {
-					involved_addresses.push(h160_to_string(to));
-				}
+				// if let Some(from) = transaction.from {
+				// 	involved_addresses.push(h160_to_string(from));
+				// }
+				// if let Some(to) = transaction.to {
+				// 	involved_addresses.push(h160_to_string(to));
+				// }
 
 				let mut matched_events = Vec::<EventCondition>::new();
 				let mut matched_transactions = Vec::<TransactionCondition>::new();
 				let mut matched_functions = Vec::<FunctionCondition>::new();
 
-				// Check transaction match conditions
-				self.find_matching_transaction(
-					&tx_status,
-					transaction,
-					&receipt.clone(),
-					monitor,
-					&mut matched_transactions,
-				);
+				// // Check transaction match conditions
+				// self.find_matching_transaction(
+				// 	&tx_status,
+				// 	transaction,
+				// 	&receipt.clone(),
+				// 	monitor,
+				// 	&mut matched_transactions,
+				// );
 
 				// Check for event match conditions
 				self.find_matching_events_for_transaction(
@@ -810,14 +822,14 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 					&mut involved_addresses,
 				);
 
-				// Check function match conditions
-				self.find_matching_functions_for_transaction(
-					&contract_specs,
-					transaction,
-					monitor,
-					&mut matched_functions,
-					&mut matched_on_args,
-				);
+				// // Check function match conditions
+				// self.find_matching_functions_for_transaction(
+				// 	&contract_specs,
+				// 	transaction,
+				// 	monitor,
+				// 	&mut matched_functions,
+				// 	&mut matched_on_args,
+				// );
 
 				// Remove duplicates
 				involved_addresses.sort_unstable();
@@ -874,7 +886,7 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 									.collect(),
 								..monitor.clone()
 							},
-							transaction: transaction.clone(),
+							transaction: EVMTransaction::default(),
 							receipt,
 							logs: Some(logs.clone()),
 							network_slug: network.slug.clone(),

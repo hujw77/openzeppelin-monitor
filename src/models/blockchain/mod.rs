@@ -117,7 +117,8 @@ pub struct ChainConfiguration {
 /// This is used to pass the results of block processing to the trigger handler
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessedBlock {
-	pub block_number: u64,
+	pub from_block_number: u64,
+	pub to_block_number: u64,
 	pub network_slug: String,
 	pub processing_results: Vec<MonitorMatch>,
 }

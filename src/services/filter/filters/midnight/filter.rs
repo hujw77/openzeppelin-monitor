@@ -260,10 +260,14 @@ impl<T: BlockChainClient + MidnightClientTrait> BlockFilter for MidnightBlockFil
 		&self,
 		client: &T,
 		network: &Network,
-		block: &BlockType,
+		blocks: &Vec<BlockType>,
 		monitors: &[Monitor],
 		_contract_specs: Option<&[(String, ContractSpec)]>,
 	) -> Result<Vec<MonitorMatch>, FilterError> {
+		//TODO: batch filter
+		let block = blocks
+			.first()
+			.ok_or_else(|| FilterError::internal_error(format!("Blocks not found"), None, None))?;
 		let midnight_block = match block {
 			BlockType::Midnight(block) => block,
 			_ => {

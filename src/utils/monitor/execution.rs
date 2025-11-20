@@ -175,28 +175,19 @@ pub async fn execute_monitor<
 					)
 				})?;
 
-				let block = blocks.first().ok_or_else(|| {
-					MonitorExecutionError::not_found(
-						format!("Block {} not found", block_number),
-						None,
-						None,
-					)
-				})?;
-
-				tracing::debug!(block = %block_number, "Filtering block");
 				config
 					.filter_service
 					.filter_block(
 						&*client,
 						&network,
-						block,
+						&blocks,
 						std::slice::from_ref(&monitor),
 						Some(&contract_specs),
 					)
 					.await
 					.map_err(|e| {
 						MonitorExecutionError::execution_error(
-							format!("Failed to filter block: {}", e),
+							format!("Failed to filter blocks: {}", e),
 							None,
 							None,
 						)
@@ -225,15 +216,7 @@ pub async fn execute_monitor<
 
 				let blocks = client.get_blocks(block_number, None).await.map_err(|e| {
 					MonitorExecutionError::execution_error(
-						format!("Failed to get block {}: {}", block_number, e),
-						None,
-						None,
-					)
-				})?;
-
-				let block = blocks.first().ok_or_else(|| {
-					MonitorExecutionError::not_found(
-						format!("Block {} not found", block_number),
+						format!("Failed to get blocks {}: {}", block_number, e),
 						None,
 						None,
 					)
@@ -244,14 +227,14 @@ pub async fn execute_monitor<
 					.filter_block(
 						&*client,
 						&network,
-						block,
+						&blocks,
 						std::slice::from_ref(&monitor),
 						Some(&contract_specs),
 					)
 					.await
 					.map_err(|e| {
 						MonitorExecutionError::execution_error(
-							format!("Failed to filter block: {}", e),
+							format!("Failed to filter blocks: {}", e),
 							None,
 							None,
 						)
@@ -280,15 +263,7 @@ pub async fn execute_monitor<
 
 				let blocks = client.get_blocks(block_number, None).await.map_err(|e| {
 					MonitorExecutionError::execution_error(
-						format!("Failed to get block {}: {}", block_number, e),
-						None,
-						None,
-					)
-				})?;
-
-				let block = blocks.first().ok_or_else(|| {
-					MonitorExecutionError::not_found(
-						format!("Block {} not found", block_number),
+						format!("Failed to get blocks {}: {}", block_number, e),
 						None,
 						None,
 					)
@@ -299,14 +274,14 @@ pub async fn execute_monitor<
 					.filter_block(
 						&*client,
 						&network,
-						block,
+						&blocks,
 						std::slice::from_ref(&monitor),
 						Some(&contract_specs),
 					)
 					.await
 					.map_err(|e| {
 						MonitorExecutionError::execution_error(
-							format!("Failed to filter block: {}", e),
+							format!("Failed to filter blocks: {}", e),
 							None,
 							None,
 						)
