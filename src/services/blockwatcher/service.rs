@@ -449,7 +449,7 @@ pub async fn process_new_blocks<
 					let block_handler = block_handler.clone();
 					async move { (block_handler)(blocks, network).await }
 				})
-				.buffer_unordered(32);
+				.buffer_unordered(2);
 
 			// Process all results and send them to trigger channel
 			while let Some(result) = results.next().await {
@@ -522,9 +522,9 @@ pub async fn process_new_blocks<
 							}
 						}
 
-						(trigger_handler)(&block);
 						next_block_number = Some(expected + 1);
 					} else {
+						(trigger_handler)(&processed_block);
 						break;
 					}
 				}

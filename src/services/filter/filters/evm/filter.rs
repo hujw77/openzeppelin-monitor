@@ -873,6 +873,8 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 					};
 
 					if should_match {
+						let mut transaction = EVMTransaction::default();
+						transaction.0.hash = log.transaction_hash.unwrap_or_default();
 						matching_results.push(MonitorMatch::EVM(Box::new(EVMMonitorMatch {
 							monitor: Monitor {
 								// Omit ABI from monitor since we do not need it here
@@ -886,7 +888,7 @@ impl<T: BlockChainClient + EvmClientTrait> BlockFilter for EVMBlockFilter<T> {
 									.collect(),
 								..monitor.clone()
 							},
-							transaction: EVMTransaction::default(),
+							transaction,
 							receipt,
 							logs: Some(logs.clone()),
 							network_slug: network.slug.clone(),
