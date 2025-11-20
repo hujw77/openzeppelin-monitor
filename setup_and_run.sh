@@ -10,19 +10,19 @@ NC='\033[0m' # No Color
 # Configuration to copy
 NETWORKS=(
     "ethereum_mainnet.json"
-    "stellar_mainnet.json"
-    "midnight_testnet.json"
+    "arbitrum_one.json"
+    "base.json"
 )
 
 MONITORS=(
     "evm_transfer_usdc.json"
-    "stellar_swap_dex.json"
-    "midnight_testnet_bulletin_post"
+    # "stellar_swap_dex.json"
+    # "midnight_testnet_bulletin_post"
 )
 
 FILTERS=(
     "evm_filter_block_number.sh"
-    "stellar_filter_block_number.sh"
+    # "stellar_filter_block_number.sh"
 )
 
 TRIGGERS=(

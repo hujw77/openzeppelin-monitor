@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use futures;
+// use futures;
 use serde_json::json;
 use tracing::instrument;
 
@@ -148,6 +148,7 @@ impl<T: Send + Sync + Clone + BlockchainTransport> EvmClientTrait for EvmClient<
 		to_block: u64,
 		addresses: Option<Vec<String>>,
 	) -> Result<Vec<EVMReceiptLog>, anyhow::Error> {
+		tracing::info!("get_logs_for_blocks: {:?} - {:?}", from_block, to_block);
 		// Convert parameters to JSON-RPC format
 		let params = json!([{
 			"fromBlock": format!("0x{:x}", from_block),
@@ -211,39 +212,36 @@ impl<T: Send + Sync + Clone + BlockchainTransport> BlockChainClient for EvmClien
 		start_block: u64,
 		end_block: Option<u64>,
 	) -> Result<Vec<BlockType>, anyhow::Error> {
-		let block_futures: Vec<_> = (start_block..=end_block.unwrap_or(start_block))
+		tracing::info!("get_blocks: {:?} - {:?}", start_block, end_block);
+		Ok((start_block..=end_block.unwrap_or(start_block))
 			.map(|block_number| {
-				let params = json!([
-					format!("0x{:x}", block_number),
-					true // include full transaction objects
-				]);
-				let client = self.http_client.clone();
-
-				async move {
-					let response = client
-						.send_raw_request("eth_getBlockByNumber", Some(params))
-						.await
-						.with_context(|| format!("Failed to get block: {}", block_number))?;
-
-					let block_data = response
-						.get("result")
-						.ok_or_else(|| anyhow::anyhow!("Missing 'result' field"))?;
-
-					if block_data.is_null() {
-						return Err(anyhow::anyhow!("Block not found"));
-					}
-
-					let block: EVMBlock = serde_json::from_value(block_data.clone())
-						.map_err(|e| anyhow::anyhow!("Failed to parse block: {}", e))?;
-
-					Ok(BlockType::EVM(Box::new(block)))
-				}
+				BlockType::EVM(Box::new(EVMBlock::mock(block_number)))
+				// let params = json!([
+				// 	format!("0x{:x}", block_number),
+				// 	true // include full transaction objects
+				// ]);
+				// let client = self.http_client.clone();
+				//
+				// async move {
+				// 	let response = client
+				// 		.send_raw_request("eth_getBlockByNumber", Some(params))
+				// 		.await
+				// 		.with_context(|| format!("Failed to get block: {}", block_number))?;
+				//
+				// 	let block_data = response
+				// 		.get("result")
+				// 		.ok_or_else(|| anyhow::anyhow!("Missing 'result' field"))?;
+				//
+				// 	if block_data.is_null() {
+				// 		return Err(anyhow::anyhow!("Block not found"));
+				// 	}
+				//
+				// 	let block: EVMBlock = serde_json::from_value(block_data.clone())
+				// 		.map_err(|e| anyhow::anyhow!("Failed to parse block: {}", e))?;
+				//
+				// 	Ok(BlockType::EVM(Box::new(block)))
+				// }
 			})
-			.collect();
-
-		futures::future::join_all(block_futures)
-			.await
-			.into_iter()
-			.collect::<Result<Vec<_>, _>>()
+			.collect())
 	}
 }

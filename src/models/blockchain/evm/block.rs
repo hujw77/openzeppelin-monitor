@@ -85,6 +85,35 @@ pub struct BaseBlock<TX> {
 pub struct Block(pub BaseBlock<EVMTransaction>);
 
 impl Block {
+	pub fn mock(block_number: u64) -> Self {
+		Block(BaseBlock {
+			number: Some(U64::from(block_number)),
+			hash: Some(B256::ZERO),
+			parent_hash: B256::ZERO,
+			uncles_hash: B256::ZERO,
+			author: Address::ZERO,
+			state_root: B256::ZERO,
+			transactions_root: B256::ZERO,
+			receipts_root: B256::ZERO,
+			gas_used: U256::ZERO,
+			gas_limit: U256::ZERO,
+			extra_data: vec![].into(),
+			logs_bloom: None,
+			timestamp: U256::ZERO,
+			difficulty: U256::ZERO,
+			total_difficulty: None,
+			seal_fields: vec![],
+			uncles: vec![],
+			transactions: vec![],
+			size: None,
+			mix_hash: None,
+			nonce: None,
+			base_fee_per_gas: None,
+		})
+	}
+}
+
+impl Block {
 	/// Get the block number
 	///
 	/// Returns the block number as an `Option<u64>`.
